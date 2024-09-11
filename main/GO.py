@@ -239,7 +239,9 @@ class GO:
     def judge_capture(self):
         for x in range(1, self.board_size + 1):
             for y in range(1, self.board_size + 1):
+                # 清除访问状态
                 self.reset_visit()
+                # 
                 if not self.board_is_visited[x][y] and (self.board[x][y] == 'B' or self.board[x][y] == 'W'):
                     if not self.this_chess_can_exist(x, y) and not self.board[x][y] == self.player:
                         print('delete_start')
