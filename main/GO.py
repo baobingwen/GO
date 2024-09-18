@@ -1,4 +1,5 @@
 import os
+import copy
 import sys
 import pygame
 import numpy as np
@@ -285,14 +286,46 @@ class GO:
         return False
     '''
     # 劫争判断，3种状态：global_homogeneity劫争中全同，none_global_homogeneity劫争中但不存在全同，not_in_ko_state不在劫争中
-    def check_ko(self):
+    def check_ko(self, current_board_copy):
+        ## print(1) # 调用正常
         if self.cur_pos > 2:
-            if self.full_board_log[self.cur_pos - 2] == self.current_board:
+            ## print(1) # 调用正常
+            print('self.cur_pos',self.cur_pos)
+            print('type(self.full_board_log)',type(self.full_board_log))
+            print('len(self.full_board_log)',len(self.full_board_log))
+            #print(self.full_board_log)
+            '''
+            for z in range(1, len(self.full_board_log)):
+                for x in range(1, self.board_dimension + 1):
+                    for y in range(1, self.board_dimension + 1):
+                        print(self.full_board_log[z][y][x],end='')
+                    print()
+                print()
+            '''
+            '''
+            for x in range(1, self.board_dimension + 1):
+                for y in range(1, self.board_dimension + 1):
+                    print(self.current_board[y][x],end='')
+                print()
+            '''
+            # 对副本进行提对方死子操作
+            opposite_color = 'W' if self.current_color == 'B' else 'B'
+            self.delete_dead_stones(opposite_color, current_board_copy)
+            
+            for x in range(1, self.board_dimension + 1):
+                for y in range(1, self.board_dimension + 1):
+                    print(current_board_copy[y][x],end='')
+                print()
+            
+            # !! 此处功能不正常，无法正常比较，需要完成提子操作才能进行比较
+            if self.full_board_log[self.cur_pos + 1 - 2] == current_board_copy:
+                print(1)
                 return 'global_homogeneity'
             else:
+                print(2)
                 return 'none_global_homogeneity'
-        else:
-            return 'not_in_ko_state'
+        
+        return 'not_in_ko_state'
 
     # 重置死棋
     def reset_dead_groups(self):
@@ -371,7 +404,7 @@ class GO:
         if 1 <= x <= self.board_dimension and 1 <= y <= self.board_dimension and self.current_board[x][y] == '.':
             print(current_color)
             self.current_board[x][y] = current_color # 在原有棋局上加上这一颗子
-            dead_group_num = self.check_for_dead_groups() # 检查全盘，获取死棋块数
+            dead_group_num = self.check_for_dead_groups() # 检查全盘，获取死棋块数，进行死子标记
             print('dead_group_num',dead_group_num)
             if dead_group_num == 0: # 0块死棋，没有死棋，能正常落子
                 canPlay = True
@@ -381,7 +414,7 @@ class GO:
                 else:
                     canPlay = True
             elif dead_group_num == 2: # 2块死棋，考虑劫争
-                ko_value = self.check_ko() # 获取劫争状态
+                ko_value = self.check_ko(copy.deepcopy(self.current_board)) # 获取劫争状态
                 if ko_value == 'global_homogeneity':
                     canPlay = False
                 else:
@@ -395,14 +428,14 @@ class GO:
         
         return canPlay
 
-    # 删除对方死子
-    def delete_dead_stones(self, opposite_color):
+    # 删除传入棋局的对方死子
+    def delete_dead_stones(self, opposite_color, board):
         for x in range(1, self.board_dimension + 1):
             for y in range(1, self.board_dimension + 1):
-                if self.dead_groups[x][y] == False and opposite_color == self.current_board[x][y]:
+                if self.dead_groups[x][y] == False and opposite_color == board[x][y]:
                     print('delete', x, y)
                     
-                    self.current_board[x][y] = '.'
+                    board[x][y] = '.'
     
     # （鼠标点击）位置转化为坐标
     def pos_to_coordinate(self, pos):
@@ -443,7 +476,7 @@ class GO:
             print('self.current_color',self.current_color)
             # 删去对方的标记的死子
             opposite_color = 'W' if self.current_color == 'B' else 'B'
-            self.delete_dead_stones(opposite_color)
+            self.delete_dead_stones(opposite_color, self.current_board)
 
             # 在棋子链上记录当前棋子
             new_piece = Chess_Piece(self.current_color, x, y, True) # 创建新棋子
@@ -456,7 +489,14 @@ class GO:
                 self.move_sequence_list[self.cur_pos] = new_piece
             
             # 在全局记录上记录当前全盘情况
-            self.full_board_log.append(self.current_board)
+            self.full_board_log.append(copy.deepcopy(self.current_board))
+            
+            print(self.cur_pos)
+            for x in range(1, self.board_dimension + 1):
+                for y in range(1, self.board_dimension + 1):
+                    print(self.full_board_log[self.cur_pos][y][x],end='')
+                print()
+            print()
             
             # 反转棋子颜色
             self.current_color = 'W' if self.current_color == 'B' else 'B'
