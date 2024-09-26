@@ -1,6 +1,8 @@
 # 测试背景的copy
 # 成功
 
+# 测试按钮的绘制
+
 import pygame
 import sys
 
@@ -8,6 +10,32 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 GRAY = (128, 128, 128)
 BOARD_COLOR = (221, 182, 116)
+
+cell_edge_len = 40 # 棋子大小
+
+Only_black = False
+Only_white = False
+
+class Only_Black_Piece_Button:
+    def __init__(self):
+        self.rect = pygame.Rect(cell_edge_len, cell_edge_len * 20, 80, 20)
+        self.color = GRAY
+        self.text = 'only black'
+
+    def draw_button(self, screen):
+        # 绘制方块按钮
+        pygame.draw.rect(screen, self.color, self.rect)
+        if self.text:
+            font = pygame.font.Font(None, 24)
+            text_surf = font.render(self.text, True, BLACK)
+            text_rect = text_surf.get_rect(center=self.rect.center)
+            screen.blit(text_surf, text_rect)
+
+    def set_only_black(self, event_pos):
+        if self.rect.collidepoint(event_pos):
+            global Only_black, Only_white
+            Only_black = True
+            Only_white = False
 
 class Background_Test:
     def __init__(self, board_dimension = 19, cell_edge_len = 40) -> None:
@@ -26,7 +54,7 @@ class Background_Test:
         self.screen = pygame.display.set_mode((self.display_width, self.display_height))
         self.font = pygame.font.Font(None, 36)
         
-        # 测试部分，测试Surface使用方法
+        # 测试部分，将当前screen这个Surface copy到background里
         self.draw_board()
         self.background = self.screen.copy()
         
@@ -57,7 +85,7 @@ class Background_Test:
             pygame.draw.line(self.screen, BLACK, (x * self.cell_edge_len, self.cell_edge_len), (x * self.cell_edge_len, 19 * self.cell_edge_len), 1)
         for y in range(1, self.board_dimension + 1):
             pygame.draw.line(self.screen, BLACK, (self.cell_edge_len, y * self.cell_edge_len), (19 * self.cell_edge_len, y * self.cell_edge_len), 1)
-    
+
 if __name__ == "__main__":
     test = Background_Test(board_dimension=19, cell_edge_len=40)
     pygame.init()

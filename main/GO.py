@@ -525,8 +525,6 @@ class GO:
 if __name__ == "__main__":
     # 前端初始化棋盘
 
-   
-
     game = GO(board_dimension = 19)
     pygame.init()
     pygame.display.set_caption("GO")
@@ -564,6 +562,7 @@ if __name__ == "__main__":
                 only_White_Piece_Button.set_only_white(event.pos)
                 normal_Mode_Button.set_normal(event.pos)
             '''
+            # 键盘功能：前进、后退
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_LEFT:
                     game.move_backward()
