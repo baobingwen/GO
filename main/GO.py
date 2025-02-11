@@ -16,10 +16,10 @@ class GO:
         self.len_edge_grid = Config.SIZE["edge_grid"]                                       # 格宽
         self.width_board = self.board_height = (self.dimension - 1) * self.len_edge_grid    # 棋盘宽、高
         self.len_border = Config.SIZE["border"]                                             # 边界宽度
-        self.width_display = self.width_board + 2 * self.len_border                         # 游戏界面宽度
-        self.height_display = self.board_height + 2 * self.len_border                       # 游戏界面高度
         self.left = self.len_border                                                         # 网格左上角左
         self.top = self.len_border                                                          # 网格左上角上
+        self.width_display = self.left + self.width_board + self.len_border                 # 游戏界面宽度
+        self.height_display = self.top + self.board_height + self.len_border                # 游戏界面高度
         
         self.coordinate_points = [(3,3),(3,9),(3,15),(9,3),(9,9),(9,15),(15,3),(15,9),(15,15)]  # 提示点坐标
         
@@ -55,7 +55,7 @@ class GO:
         
         # 棋子链
         self.move_sequence_list = ['0']
-        self.cur_pos = 0
+        self.cur_move = 0 # 当前下了几步棋
         # 全局记录
         self.full_board_log = ['0']
 
@@ -76,11 +76,11 @@ class GO:
 
         # 绘制网格线
         for x in range(self.dimension):
-            pygame.draw.line(self.screen, Config.COLORS['black'], (x * self.len_edge_grid + self.left, self.top), (x * self.len_edge_grid + self.left, self.top + (self.dimension - 1) * self.len_edge_grid), 1)
+            pygame.draw.line(self.screen, Config.COLORS['black'], (self.left + x * self.len_edge_grid, self.top), (self.left + x * self.len_edge_grid, self.top + (self.dimension - 1) * self.len_edge_grid), 1)
         for y in range(self.dimension):
             pygame.draw.line(self.screen, Config.COLORS['black'], (self.left, self.top + y * self.len_edge_grid), (self.left + (self.dimension - 1) * self.len_edge_grid, self.top + y * self.len_edge_grid), 1)
     
-    def draw_stone(self):
+    def draw_piece(self):
         '''绘制棋子'''
         for x in range(1, self.dimension + 1):
             for y in range(1, self.dimension + 1):
@@ -101,51 +101,42 @@ class GO:
     ## 逻辑
     
     def reset_visit(self):
-        '''初始化已访问位置,未访问为False,已访问为True'''
-        self.visited_area = [[False for _ in range(0, self.dimension + 1)] for _ in range(0, self.dimension + 1)]
+        '''初始化单次遍历已访问位置,未访问为False,已访问为True'''
+        self.area_visited = [[False for _ in range(0, self.dimension + 1)] for _ in range(0, self.dimension + 1)]
     
     def reset_onetime_visit(self):
-        '''初始化单次搜索已访问位置,未访问为False,已访问为True'''
+        '''初始化单次深搜已访问位置,未访问为False,已访问为True'''
         self.oneTime_visited_area = [[False for _ in range(0, self.dimension + 1)] for _ in range(0, self.dimension + 1)]
     
-    def mark_dead_group(self, x, y):
-        '''搜索单个位置看是否可找到出路，另可解释为找到并标记无气的一团死子,活棋返回True,死棋返回False'''
-        # 如果这个子已经被访问，当作活棋返回True
-        if self.visited_area[x][y]:
-            # print(1)
+    def mark_dead_group(self, x, y) -> bool:
+        '''
+        对单个位置进行深搜,判断这个位置的棋子是否是死棋;
+        在深搜过程中可以标记无气的一团死子;
+        活棋返回True,
+        不是活棋返回False
+        '''
+        
+        if self.area_visited[x][y]: # 访问本次遍历已访问位置标记，如果这个子已经被访问，不做处理，当作活棋返回True
             return True
+        self.area_visited[x][y] = True # 标记这颗子为遍历中的已访问
         
-        ## print(2) # 测试成功，此方法正常被运行
-        # 标记这颗子为全局中的已访问
-        self.visited_area[x][y] = True
-        #print(self.visited_area[x][y], x, y)
-        
-        # 标记这颗子为单次已访问
-        self.oneTime_visited_area[x][y] = True
+        self.oneTime_visited_area[x][y] = True # 标记这颗子为本次深搜已访问
 
-        # 判断这颗子有没有气
-        if self.current_board[x-1][y] == '.' or self.current_board[x][y-1] == '.' or self.current_board[x+1][y] == '.' or self.current_board[x][y+1] == '.':
-            # self.dead_groups[x][y] = [True, self.current_board[x][y]]
-            return True
+        # 判断这个位置的棋子有没有气。有气即上下左右方向存在空位。有气则活棋。活棋则返回True。
+        for i,j in [(-1,0),(0,-1),(1,0),(0,1)]:
+            if self.current_board[x+i][y+j] == '.':
+                return True
         
-        # 判断这颗子周围的同色子是否全部被访问过
-        if not ((self.current_board[x-1][y] == self.current_board[x][y] and self.oneTime_visited_area[x-1][y] == False) or (self.current_board[x+1][y] == self.current_board[x][y] and self.oneTime_visited_area[x+1][y] == False) or (self.current_board[x][y-1] == self.current_board[x][y] and self.oneTime_visited_area[x][y-1] == False) or (self.current_board[x][y+1] == self.current_board[x][y] and self.oneTime_visited_area[x][y+1] == False)):
+        # 判断这个位置的棋子上下左右的同色棋子是否全部被访问过。如果在本次深搜内全部被访问过，返回False。
+        if sum((self.current_board[x][y] == self.current_board[x+i][y+j] and self.oneTime_visited_area[x+i][y+j] == False) for i,j in [(-1,0),(0,-1),(1,0),(0,1)]) == 0:
             return False
         
         # 递归判断邻接同色子是否有通路
-        if self.current_board[x-1][y] == self.current_board[x][y] and self.oneTime_visited_area[x-1][y] == False:
-            if self.mark_dead_group(x-1,y):
-                return True
-        if self.current_board[x+1][y] == self.current_board[x][y] and self.oneTime_visited_area[x+1][y] == False:
-            if self.mark_dead_group(x+1,y):
-                return True
-        if self.current_board[x][y+1] == self.current_board[x][y] and self.oneTime_visited_area[x][y+1] == False:
-            if self.mark_dead_group(x,y+1):
-                return True
-        if self.current_board[x][y-1] == self.current_board[x][y] and self.oneTime_visited_area[x][y-1] == False:
-            if self.mark_dead_group(x,y-1):
-                return True
-        return False
+        for i,j in [(-1,0),(0,-1),(1,0),(0,1)]:
+            if self.current_board[x+i][y+j] == self.current_board[x][y] and self.oneTime_visited_area[x+i][y+j] == False:
+                if self.mark_dead_group(x+i,y+j):
+                    return True
+        return False # 如果上下左右同色棋子都没有活棋，返回False
     
     def check_ko(self, current_board_copy):
         '''
@@ -156,52 +147,36 @@ class GO:
         not_in_ko_state不在劫争中
         '''
         
-        ## print(1) # 调用正常
-        if self.cur_pos > 2:
-            # DEBUG
-            ## print(1) # 调用正常
-            print('self.cur_pos',self.cur_pos)
-            print('type(self.full_board_log)',type(self.full_board_log))
-            print('len(self.full_board_log)',len(self.full_board_log))
-            #print(self.full_board_log)
-            '''
-            for z in range(1, len(self.full_board_log)):
-                for x in range(1, self.dimension + 1):
-                    for y in range(1, self.dimension + 1):
-                        print(self.full_board_log[z][y][x],end='')
-                    print()
-                print()
-            '''
-            '''
-            for x in range(1, self.dimension + 1):
-                for y in range(1, self.dimension + 1):
-                    print(self.current_board[y][x],end='')
-                print()
-            '''
-            # 对副本进行提对方死子操作
-            opposite_color = 'W' if self.current_color == 'B' else 'B'
-            self.delete_dead_stones(opposite_color, current_board_copy)
-            # DEBUG
-            for x in range(1, self.dimension + 1):
-                for y in range(1, self.dimension + 1):
-                    print(current_board_copy[y][x],end='')
-                print()
-            
-            # !! 此处功能不正常，无法正常比较，需要完成提子操作才能进行比较
-            if self.full_board_log[self.cur_pos + 1 - 2] == current_board_copy:
-                print(1)
-                return 'global_homogeneity'
-            else:
-                print(2)
-                return 'none_global_homogeneity'
+        if self.cur_move <= 2: # 手数少于2不可能劫争
+            return 'not_in_ko_state'
         
-        return 'not_in_ko_state'
+        # DEBUG
+        print(f'self.cur_move: {self.cur_move}')
+        print(f'len(self.full_board_log): {len(self.full_board_log)}')
+        
+        # 对副本进行提对方死子操作
+        opposite_color = 'W' if self.current_color == 'B' else 'B'
+        self.delete_dead_stones(opposite_color, current_board_copy)
+        # DEBUG
+        print('current_board_copy:')
+        for x in range(1, self.dimension + 1):
+            for y in range(1, self.dimension + 1):
+                print(current_board_copy[y][x],end='')
+            print()
+        
+        # !! 此处功能不正常，无法正常比较，需要完成提子操作才能进行比较
+        if self.full_board_log[self.cur_move + 1 - 2] == current_board_copy:
+            print('global_homogeneity')
+            return 'global_homogeneity'
+        else:
+            print('none_global_homogeneity')
+            return 'none_global_homogeneity'
 
     def reset_dead_groups(self):
         '''重置死棋'''
         # 0到max是因为存储从0开始，便于模拟1到max
-        # False是被标记的死棋
-        self.dead_groups = [[True for _ in range(0, self.dimension + 1)] for _ in range(0, self.dimension + 1)]
+        # True是被标记的死棋
+        self.dead_groups = [[False for _ in range(0, self.dimension + 1)] for _ in range(0, self.dimension + 1)]
         
         # 死子团数
         self.dead_group_num = 0
@@ -215,97 +190,87 @@ class GO:
         '''判断全盘是否存在没有气的棋块'''
         
         self.reset_dead_groups() # 重置死子标记
-        # DEBUG
-        '''
-        for z in range(1, self.dimension + 1):
-            for w in range(1, self.dimension + 1):
-                print(self.dead_groups[z][w],end='')
-            print()
-        '''
+        self.reset_visit() # 清除遍历访问状态
         
-        self.reset_visit() # 清除访问状态
-        ## print(1) # 每点击一次输出一次，正常
         # 全盘搜索，对没有气的棋块进行标记
         for x in range(1, self.dimension + 1):
             for y in range(1, self.dimension + 1):
-                ## print(1) # 每点击一次输出一次，正常
-                
                 # 空位不判定
                 if self.current_board[x][y] == '.':
                     continue
                 
-                self.reset_onetime_visit() # 清除单次访问状态
+                self.reset_onetime_visit() # 清除单次深搜访问状态
                 
-                # 死棋判定
-                if not self.mark_dead_group(x, y): # 活棋或不用搜索的棋 True, 死棋 False
-                    ## print(2)
-                    # 死棋块数增加1
-                    self.dead_group_num += 1
-                    
-                    # 死棋颜色标记
-                    if self.current_board[x][y] == 'B': # 黑棋
-                        self.dead_black = True
-                    else:
-                        self.dead_white = True
-                    
-                    # 将已判定死棋区域转移至dead_groups
-                    for z in range(1, self.dimension + 1):
-                        for w in range(1, self.dimension + 1):
-                            if self.oneTime_visited_area[z][w] == True:
-                                self.dead_groups[z][w] = False
+                # 死棋判定，不是死棋不用操作
+                if self.mark_dead_group(x, y): # 活棋或不用搜索的棋 True, 死棋 False
+                    continue
+                # 是死棋
+                self.dead_group_num += 1 # 死棋块数增加1
+                
+                if self.current_board[x][y] == 'B': # 黑棋
+                    self.dead_black = True # 死棋颜色标记
+                else: # 白棋
+                    self.dead_white = True
+                
+                # 将已判定死棋区域转移至dead_groups
+                # 在针对本格的死棋块深搜mark_dead_group()中，搜索过的区域都是死棋。
+                for z in range(1, self.dimension + 1):
+                    for w in range(1, self.dimension + 1):
+                        if self.oneTime_visited_area[z][w] == True:
+                            self.dead_groups[z][w] = True
         
         # 统计死棋颜色种数
-        self.dead_group_color_num += 1 if self.dead_black == True else 0
-        self.dead_group_color_num += 1 if self.dead_white == True else 0
+        self.dead_group_color_num += 1 if self.dead_black else 0
+        self.dead_group_color_num += 1 if self.dead_white else 0
         
         # 一块死棋特判，确定死棋颜色
         if self.dead_group_color_num == 1:
-            self.dead_group_color = 'W' if self.dead_white == True else 'B'
+            self.dead_group_color = 'W' if self.dead_white else 'B'
         
         return self.dead_group_num
 
-    def can_play(self, x, y, current_color):
-        '''判断能否落子'''
-        # 判断量
-        canPlay = False
+    def handle_piece_place(self, x, y, current_piece) -> bool:
+        '''处理落子，返回能否落子'''
+        canPlay = False # 判断能否落子的返回量
         
-        # 基础条件，在棋盘上and这个位置为空位
-        if 1 <= x <= self.dimension and 1 <= y <= self.dimension and self.current_board[x][y] == '.':
-            # DEBUG
-            print(current_color)
-            self.current_board[x][y] = current_color # 在原有棋局上加上这一颗子
-            dead_group_num = self.check_for_dead_groups() # 检查全盘，获取死棋块数，进行死子标记
-            # DEBUG
-            print('dead_group_num',dead_group_num)
-            if dead_group_num == 0: # 0块死棋，没有死棋，能正常落子
+        # 基础条件:在棋盘上 并且 这个位置没有棋子
+        if not (1 <= x <= self.dimension and 1 <= y <= self.dimension and self.current_board[x][y] == '.'):
+            return False
+        
+        self.current_board[x][y] = current_piece # 尝试落子，在原有棋局上该落子位置上加上这一颗棋子(后面会还原)
+        dead_group_num = self.check_for_dead_groups() # 检查全盘，获取死棋块数，进行死子标记
+        
+        # 根据死棋情况处理能否落子
+        if dead_group_num == 0: # 0块死棋，没有死棋，能正常落子
+            canPlay = True
+        elif dead_group_num == 1: # 1块死棋
+            if current_piece == self.dead_group_color: # 死棋颜色和落子颜色一样，说明本次落子处是禁入点，不能落子
+                canPlay = False
+            else: # 死棋颜色与落子颜色相异，说明死的是非落子方的棋子，可以落子
                 canPlay = True
-            elif dead_group_num == 1: # 1块死棋，禁入点，不能落子
-                if current_color == self.dead_group_color:
-                    canPlay = False
-                else:
-                    canPlay = True
-            elif dead_group_num == 2: # 2块死棋，考虑劫争
-                ko_value = self.check_ko(copy.deepcopy(self.current_board)) # 获取劫争状态
-                if ko_value == 'global_homogeneity':
-                    canPlay = False
-                else:
-                    canPlay = True
-            elif dead_group_num >= 3: # 3块及以上死棋，不是劫争，可以落子
+        elif dead_group_num == 2: # 2块死棋，考虑劫争
+            ko_value = self.check_ko(copy.deepcopy(self.current_board)) # 获取劫争状态
+            if ko_value == 'global_homogeneity':
+                canPlay = False
+            else:
                 canPlay = True
-            self.current_board[x][y] = '.' # 还原这个位置为空位
-            
-        else:
-            canPlay =  False
+        elif dead_group_num >= 3: # 3块及以上死棋，不是劫争，可以落子
+            canPlay = True
+        
+        self.current_board[x][y] = '.' # 还原当前棋局落子位置为空位
         
         return canPlay
 
     def delete_dead_stones(self, opposite_color, board):
-        '''删除传入棋局的对方死子'''
+        '''
+        传入要删除的棋子颜色 和 要删除的棋局。
+        删除传入棋局的对方死子。
+        '''
         for x in range(1, self.dimension + 1):
             for y in range(1, self.dimension + 1):
-                if self.dead_groups[x][y] == False and opposite_color == board[x][y]:
+                if self.dead_groups[x][y] == True and opposite_color == board[x][y]:
                     # DEBUG
-                    print('delete', x, y)
+                    print(f'delete ({x},{y})')
                     
                     board[x][y] = '.'
 
@@ -327,37 +292,38 @@ class GO:
         
         return x, y
 
-    def drop_stone(self, pos):
+    def drop_piece(self, pos):
         '''落子'''
         
-        x, y = game.pos_to_coordinate(pos) # 处理棋子位置
+        x, y = game.pos_to_coordinate(pos) # 处理鼠标点击位置，获取棋子抽象坐标，即current_board里的坐标
         
-        # 判断能否落子，先判断落子，判断落子时记录要删除的位子（死子），正式落子后删除相应位置的子
-        if self.can_play(x, y, self.current_color):
-            # 落子
-            self.current_board[x][y] = self.current_color
-            # DEBUG
-            print('self.current_color',self.current_color)
-            
-            # 删去对方的标记的死子
-            opposite_color = 'W' if self.current_color == 'B' else 'B'
-            self.delete_dead_stones(opposite_color, self.current_board)
-            
-            self.cur_pos += 1 # 当前手数+1
-            
-            # 在全局记录上记录当前全盘情况
-            self.full_board_log.append(copy.deepcopy(self.current_board))
-            
-            # DEBUG
-            print(self.cur_pos)
-            for x in range(1, self.dimension + 1):
-                for y in range(1, self.dimension + 1):
-                    print(self.full_board_log[self.cur_pos][y][x],end='')
-                print()
+        # 处理落子，判断能否落子。先判断落子，判断落子时记录要删除的棋子位置（死子位置），正式落子后删除相应位置的棋子
+        if not self.handle_piece_place(x, y, self.current_color):
+            return # 不能落子，直接返回不做处理
+        
+        self.current_board[x][y] = self.current_color # 正式落子
+        # DEBUG
+        print('self.current_color',self.current_color)
+        
+        # 删除行棋者对手的死子
+        opposite_color = 'W' if self.current_color == 'B' else 'B'
+        self.delete_dead_stones(opposite_color, self.current_board)
+        
+        self.cur_move += 1 # 当前手数+1
+        
+        # 在全局记录上记录当前全盘情况
+        self.full_board_log.append(copy.deepcopy(self.current_board))
+        
+        # DEBUG
+        print('self.cur_move',self.cur_move)
+        '''for x in range(1, self.dimension + 1):
+            for y in range(1, self.dimension + 1):
+                print(self.full_board_log[self.cur_move][y][x],end='')
             print()
-            
-            # 反转棋子颜色
-            self.current_color = 'W' if self.current_color == 'B' else 'B'
+        print()'''
+        
+        # 准备下一步行棋，反转棋子颜色
+        self.current_color = 'W' if self.current_color == 'B' else 'B'
 
 if __name__ == "__main__":
     pygame.init()
@@ -375,9 +341,9 @@ if __name__ == "__main__":
                 sys.exit()
             # 点击左键
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                game.drop_stone(event.pos)
+                game.drop_piece(event.pos)
         
         game.load_background()
-        game.draw_stone()
+        game.draw_piece()
         pygame.display.flip()
         clock.tick(165)
