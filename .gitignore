@@ -7,3 +7,5 @@ tests/*
 images/原图/*
 
 main/__pycache__/*
+
+GO辅助文件/*
