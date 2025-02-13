@@ -14,21 +14,28 @@ class GO:
         # 棋盘基本量
         self.dimension = Config.SIZE["dimension_init"]                                      # 19路
         self.len_edge_grid = Config.SIZE["edge_grid"]                                       # 格宽
-        self.width_board = self.board_height = (self.dimension - 1) * self.len_edge_grid    # 棋盘宽、高
+        self.width_board = self.height_board = (self.dimension - 1) * self.len_edge_grid    # 棋盘宽、高
         self.len_border = Config.SIZE["border"]                                             # 边界宽度
-        self.left = self.len_border                                                         # 网格左上角左
-        self.top = self.len_border                                                          # 网格左上角上
-        self.width_display = self.left + self.width_board + self.len_border                 # 游戏界面宽度
-        self.height_display = self.top + self.board_height + self.len_border                # 游戏界面高度
+        self.left_board = self.len_border                                                   # 网格左上角左
+        self.top_board = self.len_border                                                    # 网格左上角上
         
         self.coordinate_points = [(3,3),(3,9),(3,15),(9,3),(9,9),(9,15),(15,3),(15,9),(15,15)]  # 提示点坐标
+        
+        self.left_button_square = self.left_board + self.width_board // 2
+        self.top_button_square = self.top_board + self.height_board
+        self.width_button_square = self.len_border
+        self.height_button_square = self.len_border
+        self.rect_button_square = pygame.rect.Rect(self.left_button_square,self.top_button_square,self.width_button_square,self.height_button_square)
+        
+        self.width_display = self.left_board + self.width_board + self.len_border                 # 游戏界面宽度
+        self.height_display = self.top_board + self.height_board + self.len_border                # 游戏界面高度
         
         # 图片资源
         self.image_blackStone = assets.images["black_stone"]
         self.image_whiteStone = assets.images["white_stone"]
         self.image_icon = assets.images["icon"]
 
-        # 初始化游戏
+        # 初始化pygame
         pygame.display.set_caption("GO") # 将游戏窗口命名为GO
         pygame.display.set_icon(self.image_icon)
         self.screen = pygame.display.set_mode((self.width_display, self.height_display)) # 设置当前窗口
@@ -40,7 +47,7 @@ class GO:
 
         # 棋局：当前全盘
         self.current_board = [['.' for _ in range(0, self.dimension + 2)] for _ in range(0, self.dimension + 2)]
-        # 设置边界一周不可行棋区
+        # 设置棋局边界一周的障碍区
         for x in range(self.dimension + 2):
             self.current_board[x][0] = '*'
             self.current_board[x][20] = '*'
@@ -48,39 +55,35 @@ class GO:
             self.current_board[0][y] = '*'
             self.current_board[20][y] = '*'
 
-        # 当前棋子颜色
-        self.current_color = 'B'
+        self.current_color = 'B' # 当前棋子颜色
 
         # 初始化落子顺序记录数据集
-        
-        # 棋子链
-        self.move_sequence_list = ['0']
+        self.move_sequence_list = ['0'] # 行棋链
         self.cur_move = 0 # 当前下了几步棋
-        # 全局记录
-        self.full_board_log = ['0']
+        self.full_board_log = ['0'] # 全局记录,先占零位,从1开始记录
 
     ## 图形
     
-    def load_background(self):
+    def load_background(self) -> None:
         '''加载背景'''
         self.screen.blit(self.background, (0, 0)) # 使用保存的背景覆盖重置界面
     
-    def draw_board_static(self):
+    def draw_board_static(self) -> None:
         '''绘制静态棋盘背景'''
         # 填充棋盘颜色
         self.screen.fill(Config.COLORS['board'])
 
         # 绘制提示点
         for coordinate in self.coordinate_points:
-            pygame.draw.circle(self.screen, Config.COLORS['black'], (coordinate[0] * self.len_edge_grid + self.left, coordinate[1] * self.len_edge_grid + self.top), 5)
+            pygame.draw.circle(self.screen, Config.COLORS['black'], (coordinate[0] * self.len_edge_grid + self.left_board, coordinate[1] * self.len_edge_grid + self.top_board), 5)
 
         # 绘制网格线
         for x in range(self.dimension):
-            pygame.draw.line(self.screen, Config.COLORS['black'], (self.left + x * self.len_edge_grid, self.top), (self.left + x * self.len_edge_grid, self.top + (self.dimension - 1) * self.len_edge_grid), 1)
+            pygame.draw.line(self.screen, Config.COLORS['black'], (self.left_board + x * self.len_edge_grid, self.top_board), (self.left_board + x * self.len_edge_grid, self.top_board + (self.dimension - 1) * self.len_edge_grid), 1)
         for y in range(self.dimension):
-            pygame.draw.line(self.screen, Config.COLORS['black'], (self.left, self.top + y * self.len_edge_grid), (self.left + (self.dimension - 1) * self.len_edge_grid, self.top + y * self.len_edge_grid), 1)
+            pygame.draw.line(self.screen, Config.COLORS['black'], (self.left_board, self.top_board + y * self.len_edge_grid), (self.left_board + (self.dimension - 1) * self.len_edge_grid, self.top_board + y * self.len_edge_grid), 1)
     
-    def draw_piece(self):
+    def draw_piece(self) -> None:
         '''绘制棋子'''
         for x in range(1, self.dimension + 1):
             for y in range(1, self.dimension + 1):
@@ -88,8 +91,8 @@ class GO:
                     continue
                 
                 # 棋子位置，位于网格线交点
-                center_x = (x - 1) * self.len_edge_grid + self.left
-                center_y = (y - 1) * self.len_edge_grid + self.top
+                center_x = (x - 1) * self.len_edge_grid + self.left_board
+                center_y = (y - 1) * self.len_edge_grid + self.top_board
                 stone_rect = pygame.rect.Rect(center_x - self.len_edge_grid // 2,center_y - self.len_edge_grid // 2,self.len_edge_grid,self.len_edge_grid)
                 
                 # 绘制单个棋子
@@ -97,6 +100,15 @@ class GO:
                     self.screen.blit(self.image_blackStone,stone_rect)
                 elif self.current_board[x][y] == 'W': # 白棋
                     self.screen.blit(self.image_whiteStone,stone_rect)
+    
+    def draw_button(self) -> None:
+        '''绘制按钮'''
+        pass
+    def draw(self) -> None:
+        '''绘制界面'''
+        self.load_background()
+        self.draw_piece()
+        self.draw_button()
 
     ## 逻辑
     
@@ -138,39 +150,38 @@ class GO:
                     return True
         return False # 如果上下左右同色棋子都没有活棋，返回False
     
-    def check_ko(self, current_board_copy):
+    def check_ko(self, current_board_copy) -> bool:
         '''
         劫争判断,
-        3种状态:
-        global_homogeneity劫争中全同,
-        none_global_homogeneity劫争中但不存在全同,
-        not_in_ko_state不在劫争中
+        2种状态:
+        True: global_homogeneity,全局同型;
+        False: none_global_homogeneity,非全同;
         '''
         
         if self.cur_move <= 2: # 手数少于2不可能劫争
-            return 'not_in_ko_state'
+            return False
         
         # DEBUG
         print(f'self.cur_move: {self.cur_move}')
         print(f'len(self.full_board_log): {len(self.full_board_log)}')
         
-        # 对副本进行提对方死子操作
+        # 对副本进行提行棋者对方的死子的操作
         opposite_color = 'W' if self.current_color == 'B' else 'B'
         self.delete_dead_stones(opposite_color, current_board_copy)
         # DEBUG
-        print('current_board_copy:')
+        print('current_board_copy deleted dead pieces:')
         for x in range(1, self.dimension + 1):
             for y in range(1, self.dimension + 1):
                 print(current_board_copy[y][x],end='')
             print()
         
-        # !! 此处功能不正常，无法正常比较，需要完成提子操作才能进行比较
+        # 需要完成提子操作后，将提完子的棋局和之前的棋局进行比较。如果相同，则判断出现全局同型，返回True；如果不同，则判断不是全同，返回False。
         if self.full_board_log[self.cur_move + 1 - 2] == current_board_copy:
             print('global_homogeneity')
-            return 'global_homogeneity'
+            return True
         else:
             print('none_global_homogeneity')
-            return 'none_global_homogeneity'
+            return False
 
     def reset_dead_groups(self):
         '''重置死棋'''
@@ -248,12 +259,8 @@ class GO:
                 canPlay = False
             else: # 死棋颜色与落子颜色相异，说明死的是非落子方的棋子，可以落子
                 canPlay = True
-        elif dead_group_num == 2: # 2块死棋，考虑劫争
-            ko_value = self.check_ko(copy.deepcopy(self.current_board)) # 获取劫争状态
-            if ko_value == 'global_homogeneity':
-                canPlay = False
-            else:
-                canPlay = True
+        elif dead_group_num == 2: # 2块死棋，考虑劫争，全同不可落子
+            canPlay = not self.check_ko(copy.deepcopy(self.current_board)) # 获取劫争状态，全局同型True，非全局同型False
         elif dead_group_num >= 3: # 3块及以上死棋，不是劫争，可以落子
             canPlay = True
         
@@ -264,22 +271,22 @@ class GO:
     def delete_dead_stones(self, opposite_color, board):
         '''
         传入要删除的棋子颜色 和 要删除的棋局。
-        删除传入棋局的对方死子。
+        删除传入棋局的行棋对方的死子。
         '''
         for x in range(1, self.dimension + 1):
             for y in range(1, self.dimension + 1):
-                if self.dead_groups[x][y] == True and opposite_color == board[x][y]:
+                if self.dead_groups[x][y] == True and board[x][y] == opposite_color:
                     # DEBUG
                     print(f'delete ({x},{y})')
                     
-                    board[x][y] = '.'
+                    board[x][y] = '.' # 在dead_groups中被标记为死棋，并且是对方棋子，提子
 
     def pos_to_coordinate(self, pos):
         '''（鼠标点击）位置转化为坐标'''
         x, y = pos
         
-        x -= self.left
-        y -= self.top
+        x -= self.left_board
+        y -= self.top_board
         
         x += self.len_edge_grid // 2
         y += self.len_edge_grid // 2
@@ -300,7 +307,7 @@ class GO:
         # 处理落子，判断能否落子。先判断落子，判断落子时记录要删除的棋子位置（死子位置），正式落子后删除相应位置的棋子
         if not self.handle_piece_place(x, y, self.current_color):
             return # 不能落子，直接返回不做处理
-        
+        # 可以落子
         self.current_board[x][y] = self.current_color # 正式落子
         # DEBUG
         print('self.current_color',self.current_color)
@@ -310,9 +317,7 @@ class GO:
         self.delete_dead_stones(opposite_color, self.current_board)
         
         self.cur_move += 1 # 当前手数+1
-        
-        # 在全局记录上记录当前全盘情况
-        self.full_board_log.append(copy.deepcopy(self.current_board))
+        self.full_board_log.append(copy.deepcopy(self.current_board)) # 在全局记录上加上当前全盘情况的记录
         
         # DEBUG
         print('self.cur_move',self.cur_move)
@@ -324,6 +329,12 @@ class GO:
         
         # 准备下一步行棋，反转棋子颜色
         self.current_color = 'W' if self.current_color == 'B' else 'B'
+    
+    def handle_event(self,event):
+        '''事件处理'''
+        # 点击左键
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            game.drop_piece(event.pos)
 
 if __name__ == "__main__":
     pygame.init()
@@ -339,11 +350,9 @@ if __name__ == "__main__":
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            # 点击左键
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                game.drop_piece(event.pos)
+            # 处理事件
+            game.handle_event(event)
         
-        game.load_background()
-        game.draw_piece()
+        game.draw()
         pygame.display.flip()
         clock.tick(165)
